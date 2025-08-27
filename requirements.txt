@@ -1,0 +1,6 @@
+pyautogui
+pyperclip
+pygetwindow
+keyboard
+websocket-client
+requests
