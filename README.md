@@ -86,14 +86,9 @@ The `.spec` files included can also be used if you need special assets or icons.
 | Clipboard empty after `/loc`  | Increase `AFTER_LOC_WAIT` delay in script (1.10 s)                   |
 | CDP 403 Forbidden             | Browser must launch with `--remote-allow-origins=*`                 |
 | Hotkeys not working           | Run the script or exe **as Administrator**                          |
-| Antivirus flags EXE           | Zip it, sign it, or mark it safe in your AV software                |
 
 ---
 
 ##  License
 
 Licensed under **GPL‑3.0** — see [LICENSE](LICENSE) for details.
-
----
-
-Feel free to add screenshots, usage examples, or update the roadmap for the next README iteration. Want help embedding a simple GIF of the hotkey → pin flow?
