@@ -18,26 +18,6 @@ Automate dropping your `/loc` in Pantheon onto Shalazam maps via **Edge or Chrom
 
 ---
 
-##  Repo Contents
-
-```
-├── dist/
-│   ├── pantheon_loc_hotkey_chrome_or_edge.exe
-│   └── pantheon_loc_hotkey_edge.exe
-├── pantheon_loc_hotkey_chrome_or_edge.py
-├── pantheon_loc_hotkey_edge.py
-├── pantheon-loc-hotkey.spec
-├── pantheon-loc-hotkey-chrome-or-edge.spec
-├── requirements.txt
-└── LICENSE (GPL‑3.0)
-```
-
-- **Built executables** are already in `dist/`. Use them directly—no Python install needed.
-- `.py` scripts for full transparency or customization.
-- `.spec` files for building new versions with PyInstaller.
-
----
-
 ##  Requirements (if using `.py`)
 
 - Windows 10 or later
