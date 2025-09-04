@@ -14,6 +14,8 @@ import pyautogui
 import pyperclip
 import pygetwindow as gw
 
+import ctypes
+# from ctypes import wintypes
 
 # =========================
 # Config
@@ -28,8 +30,8 @@ ALLOW_ORIGINS = "*"
 PANTHEON_WINDOW_TITLES = ["Pantheon", "Pantheon: Rise of the Fallen"]
 
 # Timings
-TYPING_DELAY = 0.03
-CHAT_WAKE_DELAY = 0.20
+TYPING_DELAY = 0.05
+CHAT_WAKE_DELAY = 0.30
 AFTER_LOC_WAIT = 1.10
 EDGE_START_TIMEOUT = 45.0
 
@@ -80,7 +82,7 @@ def launch_edge_with_devtools(url: str) -> None:
         f"--user-data-dir={EDGE_PROFILE_DIR}",
         "--no-first-run",
         "--no-default-browser-check",
-        MAP_URL if url is None else url,
+        url,
     ]
     subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -116,7 +118,9 @@ class CDPClient:
     def __init__(self, ws_url: str):
         # Ensure we send the allowed Origin; Edge enforces it when that flag is set
         self.ws = websocket.create_connection(
-            ws_url, enable_multithread=True, header=[f"Origin: http://127.0.0.1:{DEBUG_PORT}"]
+        ws_url,
+        enable_multithread=True,
+        origin=f"http://127.0.0.1:{DEBUG_PORT}",
         )
         self.msg_id = 0
 
@@ -195,15 +199,99 @@ def connect_to_shalazam_cdp(allow_relaunch=True) -> Optional[CDPClient]:
 # Pantheon helpers
 # =========================
 def focus_pantheon() -> bool:
+    """
+    Bring the Pantheon window to the foreground reliably.
+    Avoids pygetwindow.activate() (which can raise Win32 error 0).
+    """
+    # Find a matching window via pygetwindow
+    target = None
     for needle in PANTHEON_WINDOW_TITLES:
         for t in gw.getAllTitles():
             if needle.lower() in t.lower():
-                win = gw.getWindowsWithTitle(t)[0]
-                if win.isMinimized:
-                    win.restore()
-                win.activate()
-                return True
-    return False
+                matches = gw.getWindowsWithTitle(t)
+                if matches:
+                    target = matches[0]
+                    break
+        if target:
+            break
+    if not target:
+        return False
+
+    try:
+        hwnd = int(target._hWnd)  # raw handle for Win32
+    except Exception:
+        return False
+
+    # Win32 helpers
+    user32 = ctypes.windll.user32
+    IsIconic = user32.IsIconic
+    ShowWindow = user32.ShowWindow
+    GetForegroundWindow = user32.GetForegroundWindow
+    GetWindowThreadProcessId = user32.GetWindowThreadProcessId
+    AttachThreadInput = user32.AttachThreadInput
+    SetForegroundWindow = user32.SetForegroundWindow
+    BringWindowToTop = user32.BringWindowToTop
+    SetFocus = user32.SetFocus
+    SetWindowPos = user32.SetWindowPos
+
+    SW_RESTORE = 9
+    HWND_TOPMOST = -1
+    HWND_NOTOPMOST = -2
+    SWP_NOMOVE = 0x0002
+    SWP_NOSIZE = 0x0001
+    SWP_SHOWWINDOW = 0x0040
+
+    try:
+        # 1) Restore if minimized
+        if IsIconic(hwnd):
+            ShowWindow(hwnd, SW_RESTORE)
+            time.sleep(0.05)
+
+        # 2) Attach thread input trick to legally steal focus
+        fg = GetForegroundWindow()
+        tid_fg = GetWindowThreadProcessId(fg, None)
+        tid_hwnd = GetWindowThreadProcessId(hwnd, None)
+        AttachThreadInput(tid_fg, tid_hwnd, True)
+        try:
+            BringWindowToTop(hwnd)
+            SetForegroundWindow(hwnd)
+            SetFocus(hwnd)
+        finally:
+            AttachThreadInput(tid_fg, tid_hwnd, False)
+
+        # 3) Z-order bump (topmost -> notopmost) to force it visible
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+
+        # 4) Last-ditch fallback: click inside the window’s titlebar to focus
+        #    (only if still not foreground)
+        if GetForegroundWindow() != hwnd:
+            try:
+                # move mouse to a safe point in the window and click
+                x = target.left + 40
+                y = target.top + 10
+                pyautogui.moveTo(x, y, duration=0.05)
+                pyautogui.click()
+            except Exception:
+                pass
+
+        # small settle
+        time.sleep(0.05)
+        return True
+    except Exception:
+        # As a final fallback, try pygetwindow’s restore + activate quietly
+        try:
+            if target.isMinimized:
+                target.restore()
+            # Don't call .activate(); click instead
+            x = target.left + 40
+            y = target.top + 10
+            pyautogui.moveTo(x, y, duration=0.05)
+            pyautogui.click()
+            time.sleep(0.05)
+            return True
+        except Exception:
+            return False
 
 def send_loc_and_copy():
     pyautogui.press("enter")
@@ -298,7 +386,7 @@ def main():
 
         print("\n[*] Capturing /loc…")
         if not focus_pantheon():
-            print("[!] Pantheon window not found.")
+            print("[!] Pantheon window not found or couldn’t be focused.")
             return
         send_loc_and_copy()
         raw = get_clipboard_text()
