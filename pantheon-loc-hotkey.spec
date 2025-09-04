@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['pantheon_loc_hotkey_edge.py'],
+    ['pantheon_loc_hotkey_chrome_or_edge.py'],
     pathex=[],
     binaries=[],
     datas=[],
